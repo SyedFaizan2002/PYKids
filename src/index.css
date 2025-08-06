@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom cursor for a fun, kid-friendly experience */
+html {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 21L12 3L21 21L18 18L12 12L6 18Z" fill="%23a855f7" stroke="%23ffffff" stroke-width="1.5"/><circle cx="12" cy="8" r="2" fill="%23fbbf24"/><path d="M10 6L12 2L14 6" fill="%23ec4899"/></svg>'), auto;
+}
+
+/* Special cursor for interactive elements */
+button, a, input, textarea, select {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 21L12 3L21 21L18 18L12 12L6 18Z" fill="%23ec4899" stroke="%23ffffff" stroke-width="1.5"/><circle cx="12" cy="8" r="2" fill="%23fbbf24"/><path d="M10 6L12 2L14 6" fill="%23a855f7"/><path d="M18 10L22 8L20 12" fill="%23fbbf24"/></svg>'), pointer;
+}
+
+/* Hover effect for clickable elements */
+button:hover, a:hover {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M4 25L14 4L24 25L21 21L14 14L7 21Z" fill="%23f59e0b" stroke="%23ffffff" stroke-width="2"/><circle cx="14" cy="9" r="3" fill="%23ec4899"/><path d="M11 6L14 1L17 6" fill="%23a855f7"/><path d="M21 11L26 9L23 14" fill="%23ec4899"/><path d="M7 17L2 19L5 14" fill="%23ec4899"/><circle cx="14" cy="18" r="1" fill="%23ffffff"/></svg>'), pointer;
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #a855f7, #ec4899);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, #9333ea, #db2777);
+}
+
+/* Custom slider styles for volume control */
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, #a855f7, #ec4899);
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" fill="%23f59e0b" stroke="%23ffffff" stroke-width="2"/><circle cx="10" cy="10" r="3" fill="%23ffffff"/></svg>'), pointer;
+  box-shadow: 0 2px 6px rgba(168, 85, 247, 0.4);
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, #a855f7, #ec4899);
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" fill="%23f59e0b" stroke="%23ffffff" stroke-width="2"/><circle cx="10" cy="10" r="3" fill="%23ffffff"/></svg>'), pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(168, 85, 247, 0.4);
+}
+
+/* Loading animation for buttons */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Sparkle animation for special effects */
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+.sparkle {
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+/* Glow effect for special elements */
+.glow-effect {
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+  }
+  to {
+    box-shadow: 0 0 30px rgba(168, 85, 247, 0.6), 0 0 40px rgba(236, 72, 153, 0.4);
+  }
+}
