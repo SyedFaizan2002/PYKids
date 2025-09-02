@@ -2,14 +2,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useAuth } from './AuthContext';
 import { auth } from '../firebase/config';
 
-export interface Avatar {
-  id: string;
-  name: string;
-  gender: 'boy' | 'girl';
-  color: string;
-  personality: string;
-}
-
 export interface UserData {
   id?: string;
   email?: string;
@@ -33,7 +25,7 @@ export interface UserData {
 interface UserContextType {
   userData: UserData | null;
   updateUserProgress: (moduleId: string, topicId: string, completed: boolean, score?: number) => Promise<void>;
-  setSelectedAvatar: (avatar: Avatar) => Promise<void>;
+  setSelectedAvatar: (avatarId: string) => Promise<void>;
   loading: boolean;
   refreshUserData: () => Promise<void>;
 }
@@ -124,7 +116,8 @@ export function UserProvider({ children }: UserProviderProps) {
       console.error('Error loading user data:', error);
       setUserData({
         progress: {},
-        totalScore: 0
+        totalScore: 0,
+        lastActiveLesson: null
       });
     }
     setLoading(false);
@@ -140,14 +133,13 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   };
 
-  const setSelectedAvatar = async (avatar: Avatar) => {
+  const setSelectedAvatar = async (avatarId: string) => {
     if (!currentUser) {
       console.error('User not authenticated');
       return;
     }
 
-    // Optimistically update local state
-    setUserData(prev => prev ? { ...prev, selectedAvatar: avatar.id } : null);
+    setUserData(prev => prev ? { ...prev, selectedAvatar: avatarId } : null);
 
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -157,17 +149,16 @@ export function UserProvider({ children }: UserProviderProps) {
       }
 
       const response = await fetch(`http://localhost:5000/api/users/${currentUser.uid}/profile`, {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ selectedAvatar: avatar.id })
+        body: JSON.stringify({ selectedAvatar: avatarId })
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Failed to save avatar:', errorData.error || 'Unknown error');
+        console.error('Failed to save avatar:', await response.text());
         return;
       }
 
@@ -181,41 +172,62 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   };
 
-  const updateUserProgress = async (moduleId: string, topicId: string, completed: boolean, score?: number) => {
-    if (!currentUser || !userData) return;
+  const updateUserProgress = async (moduleId: string, topicId: string, completed: boolean, score = 10) => {
+    if (!currentUser || !userData) {
+      console.error('User not authenticated or userData not loaded');
+      return;
+    }
 
-    console.log('Tracking lesson completion:', { moduleId, topicId, completed, score });
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        console.error('Failed to get authentication token');
+        return;
+      }
 
-    const existingProgress = userData.progress[moduleId]?.[topicId];
-    const isNewCompletion = completed && !existingProgress?.completed;
-
-    const newProgress = {
-      ...userData.progress,
-      [moduleId]: {
-        ...userData.progress[moduleId],
-        [topicId]: {
-          completed,
-          score: score || existingProgress?.score || 0,
-          completedAt: completed ? new Date().toISOString() : existingProgress?.completedAt
+      const updatedProgress = {
+        ...userData.progress,
+        [moduleId]: {
+          ...(userData.progress[moduleId] || {}),
+          [topicId]: {
+            completed,
+            score: completed ? score : userData.progress[moduleId]?.[topicId]?.score || 0,
+            completedAt: completed ? new Date().toISOString() : userData.progress[moduleId]?.[topicId]?.completedAt
+          }
         }
+      };
+      const updatedTotalScore = completed 
+        ? userData.totalScore + (userData.progress[moduleId]?.[topicId]?.score ? 0 : score)
+        : userData.totalScore;
+      const updatedLastActiveLesson = { moduleId, topicId };
+
+      const response = await fetch(`http://localhost:5000/api/users/${currentUser.uid}/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          progress: updatedProgress,
+          totalScore: updatedTotalScore,
+          lastActiveLesson: updatedLastActiveLesson
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to update progress:', await response.text());
+        return;
       }
-    };
 
-    const scoreToAdd = isNewCompletion ? (score || 0) : 0;
-
-    const newUserData = {
-      ...userData,
-      progress: newProgress,
-      totalScore: userData.totalScore + scoreToAdd,
-      lastActiveLesson: {
-        moduleId,
-        topicId
-      }
-    };
-
-    setUserData(newUserData);
-
-    console.log('TODO: Update progress on backend:', newUserData);
+      setUserData({
+        ...userData,
+        progress: updatedProgress,
+        totalScore: updatedTotalScore,
+        lastActiveLesson: updatedLastActiveLesson
+      });
+    } catch (error: any) {
+      console.error('Error updating progress:', error);
+    }
   };
 
   const value = {

@@ -10,7 +10,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
   const animations = {
     programming: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-2xl flex items-center justify-center overflow-hidden ${className}`}>
-        {/* Background particles */}
         {Array.from({ length: 8 }, (_, i) => (
           <motion.div
             key={i}
@@ -30,7 +29,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
             }}
           />
         ))}
-        
         <motion.div
           className="text-6xl z-10"
           animate={{ 
@@ -73,7 +71,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </div>
       </div>
     ),
-    
     python: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-green-900/50 to-blue-900/50 rounded-2xl flex items-center justify-center ${className}`}>
         <motion.div
@@ -120,7 +117,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </div>
       </div>
     ),
-    
     highlevel: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl ${className}`}>
         <div className="flex h-full">
@@ -172,7 +168,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </div>
       </div>
     ),
-    
     variables: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-orange-900/50 to-red-900/50 rounded-2xl flex items-center justify-center ${className}`}>
         <motion.div
@@ -215,16 +210,13 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </div>
       </div>
     ),
-    
     datatypes: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-cyan-900/50 to-blue-900/50 rounded-2xl overflow-hidden ${className}`}>
-        {/* Background shimmer effect */}
         <motion.div
           className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
           animate={{ x: [-100, 400] }}
           transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
         />
-        
         <div className="grid grid-cols-2 gap-4 p-6 h-full relative z-10">
           <motion.div
             className="bg-white/10 rounded-xl p-4 text-center shadow-custom"
@@ -269,7 +261,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </div>
       </div>
     ),
-    
     strings: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-pink-900/50 to-purple-900/50 rounded-2xl flex items-center justify-center ${className}`}>
         <motion.div
@@ -320,7 +311,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </motion.div>
       </div>
     ),
-    
     lists: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-green-900/50 to-teal-900/50 rounded-2xl flex items-center justify-center ${className}`}>
         <motion.div
@@ -373,7 +363,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </div>
       </div>
     ),
-    
     tuples: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-indigo-900/50 to-purple-900/50 rounded-2xl ${className}`}>
         <div className="flex h-full">
@@ -423,7 +412,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </div>
       </div>
     ),
-    
     conditions: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-yellow-900/50 to-orange-900/50 rounded-2xl ${className}`}>
         <div className="flex h-full items-center justify-center">
@@ -469,7 +457,6 @@ function LessonAnimation({ type, className = '' }: LessonAnimationProps) {
         </div>
       </div>
     ),
-    
     loops: (
       <div className={`relative w-full h-64 bg-gradient-to-br from-red-900/50 to-pink-900/50 rounded-2xl flex items-center justify-center ${className}`}>
         <motion.div

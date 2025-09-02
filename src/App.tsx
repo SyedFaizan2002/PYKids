@@ -16,7 +16,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 function App() {
   const [loading, setLoading] = useState(true);
 
-  // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -24,13 +23,17 @@ function App() {
       } else {
         console.log('No user logged in');
       }
-      setLoading(false); // Auth state is resolved
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
   }
 
   return (

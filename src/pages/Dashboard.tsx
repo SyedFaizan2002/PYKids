@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -9,11 +9,7 @@ import {
   Play, 
   Lock,
   Star,
-  Award,
-  Code,
   CheckCircle,
-  Settings,
-  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUser } from '../contexts/UserContext';
@@ -27,6 +23,10 @@ function Dashboard() {
   const { userData, refreshUserData } = useUser();
   const navigate = useNavigate();
   const [showProfileSidebar, setShowProfileSidebar] = useState(false);
+
+  useEffect(() => {
+    refreshUserData(); // Ensure latest progress on mount
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -42,10 +42,8 @@ function Dashboard() {
     navigate('/avatar-selection');
   };
 
-  // Helper function to get lesson position across all modules
   const getLessonGlobalIndex = (moduleId: string, topicId: string) => {
     let globalIndex = 0;
-    
     for (const module of curriculum) {
       for (const lesson of module.lessons) {
         if (module.id === moduleId && lesson.id === topicId) {
@@ -57,31 +55,25 @@ function Dashboard() {
     return globalIndex;
   };
 
-  // Get total number of lessons across all modules
   const getTotalLessons = () => {
     return curriculum.reduce((total, module) => total + module.lessons.length, 0);
   };
 
   const isLessonUnlocked = (moduleId: string, topicId: string) => {
-    if (!userData?.progress) return moduleId === 'module1' && topicId === 'topic1'; // Only first lesson unlocked initially
-    
-    // First lesson is always unlocked
+    if (!userData?.progress) return moduleId === 'module1' && topicId === 'topic1';
     if (moduleId === 'module1' && topicId === 'topic1') return true;
     
     const currentLessonIndex = getLessonGlobalIndex(moduleId, topicId);
-    
-    // Check if all previous lessons are completed
     let completedLessons = 0;
     
     for (const module of curriculum) {
       for (const lesson of module.lessons) {
         const lessonIndex = getLessonGlobalIndex(module.id, lesson.id);
-        
         if (lessonIndex < currentLessonIndex) {
           if (userData.progress[module.id]?.[lesson.id]?.completed) {
             completedLessons++;
           } else {
-            return false; // Previous lesson not completed
+            return false;
           }
         }
       }
@@ -91,13 +83,11 @@ function Dashboard() {
   };
 
   const getLessonProgress = (moduleId: string, topicId: string) => {
-    if (!userData?.progress?.[moduleId]?.[topicId]) return null;
-    return userData.progress[moduleId][topicId];
+    return userData?.progress?.[moduleId]?.[topicId] || null;
   };
 
   const getModuleProgress = (moduleId: string) => {
     if (!userData?.progress?.[moduleId]) return 0;
-    
     const module = curriculum.find(m => m.id === moduleId);
     if (!module) return 0;
     
@@ -110,7 +100,6 @@ function Dashboard() {
 
   const getTotalProgress = () => {
     if (!userData?.progress) return 0;
-    
     let totalLessons = 0;
     let completedLessons = 0;
     
@@ -128,26 +117,13 @@ function Dashboard() {
 
   const isQuizUnlocked = (moduleId: string) => {
     if (!userData?.progress) return false;
+    const module = curriculum.find(m => m.id === moduleId);
+    if (!module) return false;
     
-    // Count total completed lessons across all modules
-    let totalCompletedLessons = 0;
-    
-    for (const module of curriculum) {
-      for (const lesson of module.lessons) {
-        if (userData.progress[module.id]?.[lesson.id]?.completed) {
-          totalCompletedLessons++;
-        }
-      }
-    }
-    
-    // Quiz unlocks after 5th and 10th lessons are completed
-    if (moduleId === 'module1') {
-      return totalCompletedLessons >= 5; // After 5 lessons
-    } else if (moduleId === 'module2') {
-      return totalCompletedLessons >= 10; // After 10 lessons
-    }
-    
-    return false;
+    const completedLessons = module.lessons.every(lesson => 
+      userData.progress[moduleId]?.[lesson.id]?.completed
+    );
+    return completedLessons;
   };
 
   const getNextLesson = () => {
@@ -161,6 +137,13 @@ function Dashboard() {
     return null;
   };
 
+  const getLessonTitle = (moduleId: string, topicId: string) => {
+    const module = curriculum.find(m => m.id === moduleId);
+    if (!module) return 'Unknown Lesson';
+    const lesson = module.lessons.find(l => l.id === topicId);
+    return lesson ? lesson.title : 'Unknown Lesson';
+  };
+
   const nextLesson = getNextLesson();
 
   return (
@@ -168,7 +151,6 @@ function Dashboard() {
       <AnimatedBackground variant="dashboard" />
       
       <div className="relative z-10">
-        {/* Header */}
         <header className="container mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
@@ -177,7 +159,7 @@ function Dashboard() {
                 whileHover={{ scale: 1.1, rotate: 10 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
-                <Code className="w-6 h-6 text-white" />
+                <BookOpen className="w-6 h-6 text-white" />
               </motion.div>
               <div>
                 <h1 className="text-2xl font-bold text-white">PyKIDS Dashboard</h1>
@@ -188,7 +170,7 @@ function Dashboard() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
                   >
-                    Learning with {userData.selectedAvatar.name} {userData.selectedAvatar.avatar}
+                    Learning with {userData.selectedAvatar} 🚀
                   </motion.p>
                 )}
               </div>
@@ -211,17 +193,13 @@ function Dashboard() {
           </div>
         </header>
 
-        {/* Welcome Section */}
         <section className="container mx-auto px-4 py-8">
           <motion.div
             className="bg-gradient-to-r from-purple-600/30 to-pink-600/30 backdrop-blur-sm rounded-3xl p-8 text-center mb-12 shadow-custom border border-purple-400/30"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            whileHover={{ 
-              scale: 1.02,
-              boxShadow: "0 25px 50px -10px rgba(168, 85, 247, 0.4)"
-            }}
+            whileHover={{ scale: 1.02 }}
           >
             <motion.h2 
               className="text-4xl font-bold text-white mb-6"
@@ -236,23 +214,18 @@ function Dashboard() {
               <>
                 <motion.div 
                   className="text-6xl mb-4"
-                  animate={{ 
-                    scale: [1, 1.1, 1],
-                    rotate: [0, 5, -5, 0]
-                  }}
+                  animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
                   transition={{ duration: 3, repeat: Infinity }}
                 >
-                  {userData.selectedAvatar.avatar}
+                  {userData.selectedAvatar}
                 </motion.div>
                 <h3 className="text-2xl font-bold text-white mb-2">
                   Hey there, Python Explorer! 🚀
                 </h3>
                 <p className="text-purple-200 text-lg mb-4">
-                  I'm {userData.selectedAvatar.name}, and I'm excited to help you learn Python! 
                   Let's continue your coding adventure!
                 </p>
                 
-                {/* Continue Learning Button */}
                 {nextLesson && (
                   <motion.div 
                     className="mb-6"
@@ -269,7 +242,6 @@ function Dashboard() {
                   </motion.div>
                 )}
                 
-                {/* Overall Progress */}
                 <motion.div 
                   className="bg-white/10 rounded-2xl p-4 max-w-md mx-auto backdrop-blur-sm border border-white/20"
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -285,25 +257,51 @@ function Dashboard() {
                       className="bg-gradient-to-r from-green-400 to-blue-500 h-3 rounded-full"
                       initial={{ width: 0 }}
                       animate={{ width: `${getTotalProgress()}%` }}
-                      transition={{ 
-                        duration: 1.5, 
-                        delay: 0.8,
-                        type: "spring",
-                        stiffness: 100,
-                        damping: 15
-                      }}
+                      transition={{ duration: 1.5, delay: 0.8, type: "spring", stiffness: 100, damping: 15 }}
                     />
                   </div>
                 </motion.div>
+
+                {userData?.lastActiveLesson && (
+                  <motion.div
+                    className="mt-8 bg-white/10 rounded-2xl p-6 max-w-md mx-auto backdrop-blur-sm border border-white/20"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7, duration: 0.6 }}
+                  >
+                    <h3 className="text-xl font-bold text-white mb-4">Your Progress</h3>
+                    <motion.div
+                      className="p-3 bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg border border-blue-400/30"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.9, type: "spring", stiffness: 200 }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <CheckCircle className="w-5 h-5 text-blue-400" />
+                          <p className="text-white">
+                            Last Active: {getLessonTitle(userData.lastActiveLesson.moduleId, userData.lastActiveLesson.topicId)}
+                          </p>
+                        </div>
+                        <Link to={`/lesson/${userData.lastActiveLesson.moduleId}/${userData.lastActiveLesson.topicId}`}>
+                          <Button variant="primary" size="sm">
+                            <Play className="w-4 h-4 mr-1" />
+                            Continue
+                          </Button>
+                        </Link>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
               </>
             ) : (
-              <>
-              </>
+              <h3 className="text-2xl font-bold text-white">
+                Select an avatar to get started!
+              </h3>
             )}
           </motion.div>
         </section>
 
-        {/* Modules */}
         <section className="container mx-auto px-4 pb-12">
           <div className="grid lg:grid-cols-2 gap-8">
             {curriculum.map((module, moduleIndex) => (
@@ -312,17 +310,8 @@ function Dashboard() {
                 className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-custom border border-white/10"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ 
-                  duration: 0.6, 
-                  delay: moduleIndex * 0.2,
-                  type: "spring",
-                  stiffness: 100
-                }}
-                whileHover={{ 
-                  scale: 1.02,
-                  y: -5,
-                  boxShadow: "0 20px 40px -10px rgba(168, 85, 247, 0.3)"
-                }}
+                transition={{ duration: 0.6, delay: moduleIndex * 0.2, type: "spring", stiffness: 100 }}
+                whileHover={{ scale: 1.02, y: -5 }}
               >
                 <div className="flex items-center justify-between mb-6">
                   <div>
@@ -341,23 +330,15 @@ function Dashboard() {
                   </div>
                 </div>
                 
-                {/* Progress Bar */}
                 <div className="w-full bg-white/10 rounded-full h-2 mb-6 overflow-hidden">
                   <motion.div
                     className={`bg-gradient-to-r ${module.color} h-2 rounded-full`}
                     initial={{ width: 0 }}
                     animate={{ width: `${getModuleProgress(module.id)}%` }}
-                    transition={{ 
-                      duration: 1.2, 
-                      delay: moduleIndex * 0.2 + 0.5,
-                      type: "spring",
-                      stiffness: 100,
-                      damping: 15
-                    }}
+                    transition={{ duration: 1.2, delay: moduleIndex * 0.2 + 0.5, type: "spring", stiffness: 100, damping: 15 }}
                   />
                 </div>
 
-                {/* Lessons */}
                 <div className="space-y-3">
                   {module.lessons.map((lesson, lessonIndex) => {
                     const isUnlocked = isLessonUnlocked(module.id, lesson.id);
@@ -371,19 +352,10 @@ function Dashboard() {
                             ? 'bg-white/10 hover:bg-white/20 cursor-pointer border-white/20 hover:border-purple-400/50'
                             : 'bg-white/5 opacity-50 border-white/10'
                         }`}
-                        whileHover={isUnlocked ? { 
-                          scale: 1.02,
-                          x: 5,
-                          boxShadow: "0 10px 20px -5px rgba(168, 85, 247, 0.2)"
-                        } : {}}
+                        whileHover={isUnlocked ? { scale: 1.02, x: 5 } : {}}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ 
-                          duration: 0.3, 
-                          delay: lessonIndex * 0.1,
-                          type: "spring",
-                          stiffness: 200
-                        }}
+                        transition={{ duration: 0.3, delay: lessonIndex * 0.1, type: "spring", stiffness: 200 }}
                       >
                         <div className="flex items-center space-x-4">
                           <motion.div 
@@ -446,7 +418,6 @@ function Dashboard() {
                   })}
                 </div>
                 
-                {/* Module Quiz */}
                 <motion.div
                   className={`mt-6 p-4 rounded-xl border shadow-custom ${
                     isQuizUnlocked(module.id)
@@ -455,24 +426,13 @@ function Dashboard() {
                   }`}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ 
-                    duration: 0.5, 
-                    delay: moduleIndex * 0.2 + 1,
-                    type: "spring",
-                    stiffness: 200
-                  }}
-                  whileHover={isQuizUnlocked(module.id) ? { 
-                    scale: 1.02,
-                    boxShadow: "0 15px 30px -5px rgba(251, 191, 36, 0.3)"
-                  } : {}}
+                  transition={{ duration: 0.5, delay: moduleIndex * 0.2 + 1, type: "spring", stiffness: 200 }}
+                  whileHover={isQuizUnlocked(module.id) ? { scale: 1.02 } : {}}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <motion.div
-                        animate={isQuizUnlocked(module.id) ? { 
-                          rotate: [0, 10, -10, 0],
-                          scale: [1, 1.1, 1]
-                        } : {}}
+                        animate={isQuizUnlocked(module.id) ? { rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] } : {}}
                         transition={{ duration: 2, repeat: Infinity }}
                       >
                         <Trophy className={`w-8 h-8 ${isQuizUnlocked(module.id) ? 'text-yellow-400' : 'text-gray-400'}`} />
@@ -482,10 +442,7 @@ function Dashboard() {
                         <p className={`text-sm ${isQuizUnlocked(module.id) ? 'text-yellow-200' : 'text-gray-300'}`}>
                           {isQuizUnlocked(module.id) 
                             ? 'Test your knowledge and earn bonus points!' 
-                            : module.id === 'module1' 
-                              ? 'Complete 5 lessons to unlock quiz'
-                              : 'Complete 10 lessons to unlock quiz'
-                          }
+                            : `Complete all lessons in ${module.title} to unlock quiz`}
                         </p>
                       </div>
                     </div>
@@ -510,7 +467,6 @@ function Dashboard() {
         </section>
       </div>
       
-      {/* Profile Sidebar */}
       <ProfileSidebar
         isOpen={showProfileSidebar}
         onClose={() => setShowProfileSidebar(false)}
