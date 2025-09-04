@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -13,6 +13,8 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { quizzes } from '../data/curriculum';
 import { progressAPI, analyticsAPI } from '../services/api';
+import { progressAnalyticsService } from '../services/ProgressAnalytics';
+import { navigationService } from '../services/NavigationService';
 import AnimatedBackground from '../components/AnimatedBackground';
 import Button from '../components/Button';
 
@@ -34,8 +36,35 @@ function QuizPage() {
   const [answers, setAnswers] = useState<number[]>([]);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [score, setScore] = useState(0);
+  const [quizStartTime] = useState(Date.now());
 
   const quiz = quizzes[moduleId as keyof typeof quizzes] as QuizQuestion[];
+
+  // Navigation state using NavigationService
+  const navigationState = useMemo(() => {
+    return moduleId 
+      ? navigationService.getNavigationState(moduleId, 'quiz')
+      : { canGoNext: false, canGoPrevious: false, nextDestination: 'dashboard' as const, previousAvailable: false };
+  }, [moduleId]);
+  
+  const previousContent = useMemo(() => {
+    return moduleId 
+      ? navigationService.getPreviousContent(moduleId, 'quiz')
+      : null;
+  }, [moduleId]);
+
+  // Track quiz start
+  React.useEffect(() => {
+    if (quiz && userData?.id && moduleId) {
+      analyticsAPI.trackEvent(userData.id, 'quiz_started', {
+        moduleId,
+        totalQuestions: quiz.length,
+        timestamp: new Date().toISOString()
+      }).catch(error => {
+        console.error('Error tracking quiz start:', error);
+      });
+    }
+  }, [quiz, userData?.id, moduleId]);
 
   if (!quiz) {
     return (
@@ -60,6 +89,22 @@ function QuizPage() {
     const newAnswers = [...answers];
     newAnswers[currentQuestion] = answerIndex;
     setAnswers(newAnswers);
+
+    // Track answer selection for analytics
+    if (userData?.id && moduleId) {
+      const isCorrect = answerIndex === quiz[currentQuestion].correct;
+      analyticsAPI.trackEvent(userData.id, 'quiz_answer_selected', {
+        moduleId,
+        questionId: quiz[currentQuestion].id,
+        questionNumber: currentQuestion + 1,
+        selectedAnswer: answerIndex,
+        correctAnswer: quiz[currentQuestion].correct,
+        isCorrect,
+        timestamp: new Date().toISOString()
+      }).catch(error => {
+        console.error('Error tracking answer selection:', error);
+      });
+    }
   };
 
   const handleNext = () => {
@@ -76,37 +121,143 @@ function QuizPage() {
     const correctAnswers = answers.filter((answer, index) => answer === quiz[index].correct).length;
     const finalScore = Math.round((correctAnswers / quiz.length) * 100);
     setScore(finalScore);
-    setQuizCompleted(true);
 
-    // TODO: Connect this to Flask backend
-    if (moduleId) {
+    if (!moduleId) {
+      console.error('Missing moduleId for quiz completion');
+      setQuizCompleted(true);
+      return;
+    }
+
+    try {
+      console.log('Completing quiz:', { moduleId, finalScore, correctAnswers, totalQuestions: quiz.length });
+      
+      const completionTime = Date.now() - quizStartTime;
+      const timeSpentMinutes = Math.round(completionTime / 60000);
+      
+      // CRITICAL: Update user progress and wait for persistence BEFORE showing completion
+      // Using 'quiz' as topicId to distinguish from regular lessons
+      await updateUserProgress(moduleId, 'quiz', true, finalScore, 'quiz');
+      
+      // Track detailed quiz completion analytics (non-blocking)
       try {
-        // Track quiz completion
-        await analyticsAPI.trackEvent(userData?.selectedAvatar?.id || 'unknown', 'quiz_completed', {
-          moduleId,
-          score: finalScore,
-          correctAnswers,
-          totalQuestions: quiz.length
-        });
-        
-        // Save quiz result
-        await progressAPI.saveQuizResult(userData?.selectedAvatar?.id || 'unknown', {
-          moduleId,
-          score: finalScore,
-          totalQuestions: quiz.length,
-          correctAnswers,
-          completedAt: new Date().toISOString()
-        });
-        
-        // Update user progress (existing function)
-        await updateUserProgress(moduleId, 'quiz', true, finalScore);
-      } catch (error) {
-        console.error('Error updating quiz progress:', error);
+        if (userData?.id) {
+          await analyticsAPI.trackEvent(userData.id, 'quiz_completed', {
+            moduleId,
+            score: finalScore,
+            correctAnswers,
+            totalQuestions: quiz.length,
+            timeSpentMs: completionTime,
+            timeSpentMinutes,
+            averageTimePerQuestion: Math.round(completionTime / quiz.length),
+            timestamp: new Date().toISOString()
+          });
+          
+          // Save detailed quiz result for progress tracking and dashboard integration
+          await progressAPI.saveQuizResult(userData.id, {
+            moduleId,
+            score: finalScore,
+            totalQuestions: quiz.length,
+            correctAnswers,
+            completedAt: new Date().toISOString()
+          });
+
+          // Track module-level completion analytics for progress insights
+          if (userData.progress) {
+            const moduleCompletionStatus = progressAnalyticsService.getModuleCompletionStatus(
+              userData.progress, 
+              moduleId
+            );
+            
+            await analyticsAPI.trackEvent(userData.id, 'module_quiz_completed', {
+              moduleId,
+              score: finalScore,
+              performance: finalScore >= 80 ? 'excellent' : finalScore >= 60 ? 'good' : 'needs_improvement',
+              moduleProgress: moduleCompletionStatus.percentage,
+              isModuleCompleted: moduleCompletionStatus.isCompleted,
+              timeSpentMinutes,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      } catch (analyticsError) {
+        console.warn('Analytics tracking failed:', analyticsError);
+        // Don't block completion for analytics failures
       }
+      
+      // Show completion screen after successful progress save
+      setQuizCompleted(true);
+      
+    } catch (error) {
+      console.error('Error completing quiz:', error);
+      
+      // Show user-friendly error message
+      alert('There was an issue saving your quiz results. Please check your connection and try again.');
+      
+      // Don't show completion screen if progress save failed
+      // This prevents data loss and ensures progress is properly saved
     }
   };
 
+  // Navigation handlers
+  const handlePreviousContent = useCallback(() => {
+    if (previousContent && navigationState.canGoPrevious) {
+      const previousRoute = navigationService.getContentRoute(previousContent.moduleId, previousContent.topicId);
+      navigate(previousRoute);
+    }
+  }, [previousContent, navigationState.canGoPrevious, navigate]);
+
+  const handleNextContent = useCallback(() => {
+    if (!moduleId) return;
+    
+    // Navigate directly to next content without completing quiz
+    const nextContentInfo = navigationService.getNextContent(moduleId, 'quiz');
+    const currentNavigationState = navigationService.getNavigationState(moduleId, 'quiz');
+    
+    if (currentNavigationState.nextDestination === 'dashboard') {
+      navigate('/dashboard');
+    } else if (nextContentInfo) {
+      const nextRoute = navigationService.getContentRoute(nextContentInfo.moduleId, nextContentInfo.topicId);
+      navigate(nextRoute);
+    }
+  }, [moduleId, navigate]);
+
+  const navigateAfterCompletion = useCallback(() => {
+    if (!moduleId) return;
+    
+    // Use NavigationService to determine next destination after quiz completion
+    const currentNavigationState = navigationService.getNavigationState(moduleId, 'quiz');
+    const nextContentInfo = navigationService.getNextContent(moduleId, 'quiz');
+    
+    if (currentNavigationState.nextDestination === 'dashboard') {
+      // This is the final quiz - go to dashboard
+      navigate('/dashboard');
+    } else if (nextContentInfo) {
+      // Navigate to next content item (lesson or quiz)
+      if (nextContentInfo.isModuleTransition) {
+        console.log(`Transitioning from module ${moduleId} to module ${nextContentInfo.moduleId}`);
+      }
+      
+      const nextRoute = navigationService.getContentRoute(nextContentInfo.moduleId, nextContentInfo.topicId);
+      navigate(nextRoute);
+    } else {
+      // Fallback to dashboard
+      navigate('/dashboard');
+    }
+  }, [moduleId, navigate]);
+
   const resetQuiz = () => {
+    // Track quiz reset for analytics
+    if (userData?.id && moduleId) {
+      analyticsAPI.trackEvent(userData.id, 'quiz_reset', {
+        moduleId,
+        previousScore: score,
+        questionsCompleted: currentQuestion + 1,
+        timestamp: new Date().toISOString()
+      }).catch(error => {
+        console.error('Error tracking quiz reset:', error);
+      });
+    }
+
     setCurrentQuestion(0);
     setSelectedAnswer(null);
     setShowResult(false);
@@ -221,8 +372,17 @@ function QuizPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1, duration: 0.6 }}
             >
-              <Button variant="success" size="lg" onClick={() => navigate('/dashboard')} className="w-full">
-                Continue Learning
+              <Button 
+                variant="success" 
+                size="lg" 
+                onClick={navigateAfterCompletion} 
+                className="w-full"
+              >
+                {navigationState.nextDestination === 'dashboard' 
+                  ? 'Back to Dashboard' 
+                  : navigationState.nextDestination === 'quiz'
+                  ? 'Next Quiz'
+                  : 'Continue Learning'}
               </Button>
               <Button variant="secondary" size="md" onClick={resetQuiz} className="w-full">
                 <RotateCcw className="w-4 h-4 mr-2" />
@@ -265,9 +425,9 @@ function QuizPage() {
                     }}
                     transition={{ duration: 3, repeat: Infinity }}
                   >
-                    {userData.selectedAvatar.avatar}
+                    {userData.selectedAvatar}
                   </motion.span>
-                  <span className="text-white">{userData.selectedAvatar.name}</span>
+                  <span className="text-white">{userData.selectedAvatar}</span>
                 </motion.div>
               )}
             </div>
@@ -426,6 +586,51 @@ function QuizPage() {
                       </>
                     )}
                   </Button>
+                </motion.div>
+              )}
+
+              {/* Navigation buttons when not showing result */}
+              {!showResult && (
+                <motion.div
+                  className="flex justify-center gap-4 mt-8"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3, duration: 0.5 }}
+                >
+                  <motion.div
+                    whileHover={navigationState.canGoPrevious ? { scale: 1.05 } : {}}
+                    whileTap={navigationState.canGoPrevious ? { scale: 0.95 } : {}}
+                  >
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      onClick={handlePreviousContent}
+                      disabled={!navigationState.canGoPrevious}
+                      className={!navigationState.canGoPrevious ? 'opacity-50 cursor-not-allowed' : ''}
+                    >
+                      <ArrowLeft className="w-5 h-5 mr-2" />
+                      Previous {previousContent?.type === 'quiz' ? 'Quiz' : 'Lesson'}
+                    </Button>
+                  </motion.div>
+                  
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={handleNextContent}
+                      disabled={!navigationState.canGoNext && navigationState.nextDestination !== 'dashboard'}
+                    >
+                      {navigationState.nextDestination === 'dashboard' 
+                        ? 'Back to Dashboard' 
+                        : navigationState.nextDestination === 'quiz'
+                        ? 'Next Quiz'
+                        : 'Next Lesson'}
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                  </motion.div>
                 </motion.div>
               )}
             </motion.div>
